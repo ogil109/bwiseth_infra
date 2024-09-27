@@ -4,9 +4,13 @@ version = "0.1.0"
 description = "Common infrastructure for bwiseth microservice architecture."
 authors = ["Oscar Gil <hello@oscargilbalaguer.com>"]
 readme = "README.md"
+package-mode = false
+
 
 [tool.poetry.dependencies]
 python = "^3.12"
+pulumi = "^3.134.1"
+pulumi-aws = "^6.53.0"
 
 
 [build-system]
