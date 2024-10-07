@@ -2,7 +2,7 @@ import pulumi
 import pulumi_aws as aws
 import ipaddress
 
-# Helper function to calculate subnet CIDR blocks based on the VPC's CIDR
+# Helper function to calculate subnet CIDR blocks based on the VPC's CIDR (/16)
 def get_subnet_cidr(vpc_cidr, subnet_offset):
     network = ipaddress.IPv4Network(vpc_cidr)
     subnet = network.subnets(new_prefix=24)  # Assuming /24 subnets within the /16 VPC
