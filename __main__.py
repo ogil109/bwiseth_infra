@@ -1,5 +1,16 @@
 import pulumi
 import pulumi_aws as aws
+import ipaddress
+
+# Helper function to calculate subnet CIDR blocks based on the VPC's CIDR
+def get_subnet_cidr(vpc_cidr, subnet_offset):
+    network = ipaddress.IPv4Network(vpc_cidr)
+    subnet = network.subnets(new_prefix=24)  # Assuming /24 subnets within the /16 VPC
+    return str(list(subnet)[subnet_offset])
+
+# Common Tags
+def common_tags(env):
+    return {"Environment": env, "Project": "bwiseth"}
 
 def create_vpc_environment(name, cidr_block):
     # Create VPC
@@ -7,39 +18,42 @@ def create_vpc_environment(name, cidr_block):
                       cidr_block=cidr_block,
                       enable_dns_support=True,
                       enable_dns_hostnames=True,
-                      tags={"Name": f"{name}-vpc"})
+                      tags={**common_tags(name), "Name": f"{name}-vpc"})
+
+    # Get available availability zones dynamically
+    zones = aws.get_availability_zones(state="available").names
 
     # Create subnets
     public_subnet1 = aws.ec2.Subnet(f"{name}-public-subnet1",
                                     vpc_id=vpc.id,
-                                    cidr_block=f"{cidr_block[:-2]}10.0/24",
-                                    availability_zone="us-west-2a",
+                                    cidr_block=get_subnet_cidr(cidr_block, 1),
+                                    availability_zone=zones[0],
                                     map_public_ip_on_launch=True,
-                                    tags={"Name": f"{name}-public-subnet1"})
+                                    tags={**common_tags(name), "Name": f"{name}-public-subnet1"})
 
     public_subnet2 = aws.ec2.Subnet(f"{name}-public-subnet2",
                                     vpc_id=vpc.id,
-                                    cidr_block=f"{cidr_block[:-2]}11.0/24",
-                                    availability_zone="us-west-2b",
+                                    cidr_block=get_subnet_cidr(cidr_block, 2),
+                                    availability_zone=zones[1],
                                     map_public_ip_on_launch=True,
-                                    tags={"Name": f"{name}-public-subnet2"})
+                                    tags={**common_tags(name), "Name": f"{name}-public-subnet2"})
 
     private_subnet1 = aws.ec2.Subnet(f"{name}-private-subnet1",
                                      vpc_id=vpc.id,
-                                     cidr_block=f"{cidr_block[:-2]}20.0/24",
-                                     availability_zone="us-west-2a",
-                                     tags={"Name": f"{name}-private-subnet1"})
+                                     cidr_block=get_subnet_cidr(cidr_block, 3),
+                                     availability_zone=zones[0],
+                                     tags={**common_tags(name), "Name": f"{name}-private-subnet1"})
 
     private_subnet2 = aws.ec2.Subnet(f"{name}-private-subnet2",
                                      vpc_id=vpc.id,
-                                     cidr_block=f"{cidr_block[:-2]}21.0/24",
-                                     availability_zone="us-west-2b",
-                                     tags={"Name": f"{name}-private-subnet2"})
+                                     cidr_block=get_subnet_cidr(cidr_block, 4),
+                                     availability_zone=zones[1],
+                                     tags={**common_tags(name), "Name": f"{name}-private-subnet2"})
 
     # Create Internet Gateway
     internet_gateway = aws.ec2.InternetGateway(f"{name}-igw",
                                                vpc_id=vpc.id,
-                                               tags={"Name": f"{name}-igw"})
+                                               tags={**common_tags(name), "Name": f"{name}-igw"})
 
     # Create EIPs for NAT Gateway
     eip1 = aws.ec2.Eip(f"{name}-eip1", vpc=True)
@@ -49,12 +63,14 @@ def create_vpc_environment(name, cidr_block):
     nat_gateway1 = aws.ec2.NatGateway(f"{name}-nat-gateway1",
                                       subnet_id=public_subnet1.id,
                                       allocation_id=eip1.id,
-                                      tags={"Name": f"{name}-nat-gateway1"})
+                                      tags={**common_tags(name), "Name": f"{name}-nat-gateway1"},
+                                      depends_on=[internet_gateway])
 
     nat_gateway2 = aws.ec2.NatGateway(f"{name}-nat-gateway2",
                                       subnet_id=public_subnet2.id,
                                       allocation_id=eip2.id,
-                                      tags={"Name": f"{name}-nat-gateway2"})
+                                      tags={**common_tags(name), "Name": f"{name}-nat-gateway2"},
+                                      depends_on=[internet_gateway])
 
     # Create Route Tables
     public_rt = aws.ec2.RouteTable(f"{name}-public-rt",
@@ -63,11 +79,11 @@ def create_vpc_environment(name, cidr_block):
                                        cidr_block="0.0.0.0/0",
                                        gateway_id=internet_gateway.id
                                    )],
-                                   tags={"Name": f"{name}-public-rt"})
+                                   tags={**common_tags(name), "Name": f"{name}-public-rt"})
 
     private_rt = aws.ec2.RouteTable(f"{name}-private-rt",
                                     vpc_id=vpc.id,
-                                    tags={"Name": f"{name}-private-rt"})
+                                    tags={**common_tags(name), "Name": f"{name}-private-rt"})
 
     aws.ec2.RouteTableAssociation(f"{name}-public-rt-assoc1",
                                   subnet_id=public_subnet1.id,
@@ -121,7 +137,7 @@ def create_vpc_environment(name, cidr_block):
                                               to_port=0,
                                               cidr_blocks=["0.0.0.0/0"])
                                       ],
-                                      tags={"Name": f"{name}-public-sg"})
+                                      tags={**common_tags(name), "Name": f"{name}-public-sg"})
 
     private_sg = aws.ec2.SecurityGroup(f"{name}-private-sg",
                                        vpc_id=vpc.id,
@@ -140,15 +156,16 @@ def create_vpc_environment(name, cidr_block):
                                                to_port=0,
                                                cidr_blocks=["0.0.0.0/0"])
                                        ],
-                                       tags={"Name": f"{name}-private-sg"})
+                                       tags={**common_tags(name), "Name": f"{name}-private-sg"})
 
+    # Export relevant IDs and outputs for cross-stack references
     pulumi.export(f"{name}_vpc_id", vpc.id)
     pulumi.export(f"{name}_public_subnets", [public_subnet1.id, public_subnet2.id])
     pulumi.export(f"{name}_private_subnets", [private_subnet1.id, private_subnet2.id])
     pulumi.export(f"{name}_nat_gateway_ids", [nat_gateway1.id, nat_gateway2.id])
 
 # Create dev environment
-create_vpc_environment("dev", "10.0.0.0/16")
+create_vpc_environment("bwiseth_dev", "10.0.0.0/16")
 
 # Create prod environment
-create_vpc_environment("prod", "10.1.0.0/16")
+create_vpc_environment("bwiseth_prod", "10.1.0.0/16")
