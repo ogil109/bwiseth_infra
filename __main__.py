@@ -164,8 +164,9 @@ def create_vpc_environment(name, cidr_block):
     pulumi.export(f"{name}_private_subnets", [private_subnet1.id, private_subnet2.id])
     pulumi.export(f"{name}_nat_gateway_ids", [nat_gateway1.id, nat_gateway2.id])
 
-# Create dev environment
-create_vpc_environment("bwiseth_dev", "10.0.0.0/16")
+# Get stack name and CIDR block
+name = pulumi.get_stack()
+cidr_block = pulumi.Config().get("cidr_block")
 
-# Create prod environment
-create_vpc_environment("bwiseth_prod", "10.1.0.0/16")
+# Create stack environment
+create_vpc_environment(name, cidr_block)
