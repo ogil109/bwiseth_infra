@@ -109,8 +109,7 @@ def create_internet_gateway(name: str, vpc_id: str) -> aws.ec2.InternetGateway:
 
 # Create NAT Gateway
 def create_nat_gateway(
-    name: str, subnet_id: str, allocation_id: str, dependencies
-) -> aws.ec2.NatGateway:
+    name: str, subnet_id: str, allocation_id: str, dependencies) -> aws.ec2.NatGateway:
     """
     Create a NAT Gateway.
 
@@ -129,7 +128,7 @@ def create_nat_gateway(
             subnet_id=subnet_id,
             allocation_id=allocation_id,
             tags={**common_tags(name), "Name": f"{name}-nat-gateway"},
-            opts=pulumi.ResourceOptions(depends_on=dependencies),  # Corrected usage
+            opts=pulumi.ResourceOptions(depends_on=dependencies),
         )
     except Exception as e:
         raise RuntimeError(f"Error creating NAT Gateway: {e}")
@@ -182,8 +181,8 @@ def create_vpc_environment(name: str, cidr_block: str) -> None:
 
         internet_gateway = create_internet_gateway(name, vpc.id)
 
-        eip1 = aws.ec2.Eip(f"{name}-eip1", domain="vpc")  # Corrected parameter
-        eip2 = aws.ec2.Eip(f"{name}-eip2", domain="vpc")  # Corrected parameter
+        eip1 = aws.ec2.Eip(f"{name}-eip1", domain="vpc")
+        eip2 = aws.ec2.Eip(f"{name}-eip2", domain="vpc")
 
         nat_gateway1 = create_nat_gateway(
             f"{name}-nat-gateway1",
@@ -212,7 +211,7 @@ def create_vpc_environment(name: str, cidr_block: str) -> None:
 
 # Get stack name and CIDR block
 name = pulumi.get_stack()
-cidr_block = pulumi.Config().get("cidr_block") or "10.0.0.0/16"  # Set default CIDR block
+cidr_block = pulumi.Config().get("cidr_block") or "10.0.0.0/16"  # Set default CIDR block as dev
 
 # Create stack environment
 create_vpc_environment(name, cidr_block)
