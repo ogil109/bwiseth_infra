@@ -210,7 +210,7 @@ def create_vpc_environment(name: str, cidr_block: str) -> None:
         raise RuntimeError(f"Error creating VPC environment: {e}")
 
 # Get stack name and CIDR block
-name = pulumi.get_stack()
+name = pulumi.Config().get("vpc_name")
 cidr_block = pulumi.Config().get("cidr_block") or "10.0.0.0/16"  # Set default CIDR block as dev
 
 # Create stack environment
